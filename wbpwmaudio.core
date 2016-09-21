@@ -1,0 +1,13 @@
+CAPI=1
+[main]
+description = A Wishbone Controlled PWM (audio) controller
+
+[fileset rtl]
+files = rtl/wbpwmaudio.v
+file_type = verilogSource
+
+[provider]
+name=github
+user=ZipCPU
+repo=wbpwmaudio
+version = master
