@@ -1,54 +1,10 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Filename: 	wbpwmaudio.v
+// Filename: 	traditionalpwm.v
 //
 // Project:	A Wishbone Controlled PWM (audio) controller
 //
-// Purpose:	This PWM controller was designed with audio in mind, although
-//		it should be sufficient for many other purposes.  Specifically,
-//	it creates a pulse-width modulated output, where the amount of time
-//	the output is 'high' is determined by the pulse width data given to
-//	it.  Further, the 'high' time is spread out in bit reversed order.
-//	In this fashion, a halfway point will alternate between high and low,
-//	rather than the normal fashion of being high for half the time and then
-//	low.  This approach was chosen to move the PWM artifacts to higher,
-//	inaudible frequencies and hence improve the sound quality.
-//
-//	The interface supports two addresses:
-//
-//	Addr[0] is the data register.  Writes to this register will set
-//		a 16-bit sample value to be produced by the PWM logic.
-//		Reads will also produce, in the 17th bit, whether the interrupt
-//		is set or not.  (If set, it's time to write a new data value
-//		...)
-//
-//	Addr[1] is a timer reload value, used to determine how often the
-//		PWM logic needs its next value.  This number should be set
-//		to the number of clock cycles between reload values.  So,
-//		for example, an 80 MHz clock can generate a 44.1 kHz audio
-//		stream by reading in a new sample every (80e6/44.1e3 = 1814)
-//		samples.  After loading a sample, the device is immediately
-//		ready to load a second.  Once the first sample completes,
-//		the second sample will start going to the output, and an
-//		interrupt will be generated indicating that the device is
-//		now ready for the third sample.  (The one sample buffer
-//		allows some flexibility in getting the new sample there fast
-//		enough ...)
-//
-//
-//	If you read through the code below, you'll notice that you can also
-//	set the timer reload value to an immutable constant by changing the
-//	VARIABLE_RATE parameter to 0.  When VARIABLE_RATE is set to zero,
-//	both addresses become the same, Addr[0] or the data register, and the
-//	reload value can no longer be changed--forcing the sample rate to
-//	stay constant.
-//
-//
-//	Of course, if you don't want to deal with the interrupts or sample
-//	rates, you can still get a pseudo analog output by just setting the
-//	value to the analog output you would like and then not updating
-//	it.  In this case, you could also shut the interrupt down at the
-//	controller, to keep that from bothering you as well.
+// Purpose:
 //
 // Creator:	Dan Gisselquist, Ph.D.
 //		Gisselquist Technology, LLC
@@ -81,7 +37,7 @@
 //
 `default_nettype	none
 //
-module	wbpwmaudio(i_clk, i_reset,
+module	traditionalpwm(i_clk, i_reset,
 		// Wishbone interface
 		i_wb_cyc, i_wb_stb, i_wb_we, i_wb_addr, i_wb_data,
 			o_wb_ack, o_wb_stall, o_wb_data,
@@ -114,7 +70,7 @@ module	wbpwmaudio(i_clk, i_reset,
 		initial	r_reload_value = DEFAULT_RELOAD;
 		always @(posedge i_clk) // Data write
 			if ((i_wb_stb)&&(i_wb_addr)&&(i_wb_we))
-				r_reload_value <= i_wb_data[(TIMING_BITS-1):0] - 1'b1;
+				r_reload_value <= i_wb_data[(TIMING_BITS-1):0]-1'b1;
 		assign	w_reload_value = r_reload_value;
 	end else begin
 		assign	w_reload_value = DEFAULT_RELOAD;
@@ -167,46 +123,25 @@ module	wbpwmaudio(i_clk, i_reset,
 		if ((i_wb_stb)&&(i_wb_we)
 				&&((!i_wb_addr)||(VARIABLE_RATE==0)))
 		begin
-			// Write with two's complement data, convert it
-			// internally to an unsigned binary offset
+			// We get a two's complement data from the bus.
+			// Convert it here to an unsigned binary offset
 			// representation
-			next_sample <= { !i_wb_data[15], i_wb_data[14:0] };
+			next_sample <= i_wb_data[15:0] + w_reload_value[15:1] + 1'b1;
 			next_valid <= 1'b1;
 			if (i_wb_data[16])
 				o_aux <= i_wb_data[(NAUX+20-1):20];
 		end else if (ztimer)
 			next_valid <= 1'b0;
 
-	// If the value in our sample buffer isn't valid, create an interrupt
-	// that can be sent to a processor to know when to send a new sample.
-	// This output can also be used to control a read from a FIFO as well,
-	// depending on how you wish to use the core.
 	assign	o_int = (!next_valid);
 
-	//
-	// To generate our waveform, we'll compare our sample value against
-	// a bit reversed counter.  This counter is kept in pwm_counter.
-	// The choice of a 16-bit counter is arbitrary, but it was made to
-	// match the sixteen bits of the input
 	reg	[15:0]	pwm_counter;
 	initial	pwm_counter = 16'h00;
 	always @(posedge i_clk)
-		if (i_reset)
-			pwm_counter <= 16'h0;
-		else
-			pwm_counter <= pwm_counter + 16'h01;
+			pwm_counter <= w_reload_value - timer;
 
-	// Bit-reverse the counter
-	wire	[15:0]	br_counter;
-	genvar	k;
-	generate for(k=0; k<16; k=k+1)
-	begin : bit_reversal_loop
-		assign br_counter[k] = pwm_counter[15-k];
-	end endgenerate
-
-	// Apply our comparison to determine the next output bit
 	always @(posedge i_clk)
-		o_pwm <= (sample_out >= br_counter);
+		o_pwm <= (sample_out >= pwm_counter);
 
 	//
 	// Handle the bus return traffic.
@@ -246,7 +181,7 @@ module	wbpwmaudio(i_clk, i_reset,
 	// V*rilator that we already know these bits aren't being used.
 	//
 	// verilator lint_off UNUSED
-	wire	[14:0] unused;
+	wire	[14:0]	unused;
 	assign	unused = { i_wb_cyc, i_wb_data[31:21], i_wb_data[19:17] };
 	// verilator lint_on  UNUSED
 
