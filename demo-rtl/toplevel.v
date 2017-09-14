@@ -60,26 +60,26 @@ module	toplevel(i_clk, i_sw, o_led, o_shutdown_n, o_gain, o_pwm);
 	reg	[36:0]	test_params [0:7];
 	reg	[36:0]	params;
 	initial begin
-		// Silence, two seconds
-		test_params[0] = { 2'b00, 34'd0, 1'b0 };
-		test_params[1] = { 2'b00, 34'd0, 1'b0 };
-		// 440 Hz tone
-		test_params[2] = { 2'b11,
-			// 440Hz Tone frequency / 100MHz clock rate * 2^34
-			34'd75_591,
-			// No sweep rate
-			1'b0 };
-		test_params[3] = { 2'b11, 34'd75_591, 1'b0 };
-		// Off again
-		test_params[4] = { 2'b00, 34'd0, 1'b0 };
 		// Sweep starts from 110 Hz
-		test_params[5] = { 2'b11,
+		test_params[0] = { 2'b11,
 			// Start at 110 Hz
 			34'd18_898,	// 0x49d2
 			// Sweep
 			1'b1 };
-		test_params[6] = { 2'b11, 34'd158_1398, 1'b1 };
-		test_params[7] = { 2'b11, 34'd314_3898, 1'b1 };
+		test_params[1] = { 2'b11, 34'd158_1398, 1'b1 };
+		test_params[2] = { 2'b11, 34'd314_3898, 1'b1 };
+		// One second of silence
+		test_params[3] = { 2'b00, 34'd0, 1'b0 };
+		// 440 Hz tone for two seconds
+		test_params[4] = { 2'b11,
+			// 440Hz Tone frequency / 100MHz clock rate * 2^34
+			34'd75_591,
+			// No sweep rate
+			1'b0 };
+		test_params[5] = { 2'b11, 34'd75_591, 1'b0 };
+		// Off again for two seconds prior to the next step
+		test_params[6] = { 2'b00, 34'd0, 1'b0 };
+		test_params[7] = { 2'b00, 34'd0, 1'b0 };
 	end
 
 	reg		seq_sweep;
@@ -105,7 +105,7 @@ module	toplevel(i_clk, i_sw, o_led, o_shutdown_n, o_gain, o_pwm);
 	// Artificially start at the beginning of the frequency sweep.
 	reg		test_reset;
 	reg	[2:0]	test_state;
-	initial	test_state = 3'b101;
+	initial	test_state = 3'b000;
 	always @(posedge i_clk)
 		// Advance the test on the top of each second
 		if (next_second)
@@ -173,15 +173,18 @@ module	toplevel(i_clk, i_sw, o_led, o_shutdown_n, o_gain, o_pwm);
 	wire	signed [15:0]	signal;
 
 	// Here's a straight CORDIC.  The inputs to this should be fairly
-	// self-explanatory, with the exception of the 16'h6dec.  This value
+	// self-explanatory, with the exception of the 16'h6de0.  This value
 	// is the gain necessary to cause the CORDIC to produce a full-range
 	// output value.  This gain is calculated internal to the CORDIC
 	// core generator, but can also be found within the cordic.v code
 	// following the cordic_angle[] array initialization.  In our case,
 	// we've taken the top 15-bits of the gain annihilator, prepended
 	// a zero sign bit, and used that for our value here.  See the
-	// discussion on CORDIC's, and the CORDIC file for more info.  
-	cordic	gentone(i_clk, test_reset, 1'b1, 16'h6dec, 16'h0,
+	// discussion on CORDIC's, and the CORDIC file for more info.
+	//
+	// The value was dropped from 16'h6dec to 16'h6de8 to provide some
+	// cushion against overflow.
+	cordic	gentone(i_clk, test_reset, 1'b1, 16'h6de8, 16'h0,
 			test_phase[33:9], 1'b0, signal, geny, ignore_aux);
 
 	// Our goal is to calculate two outputs: one from the PDM, one from
@@ -218,11 +221,11 @@ module	toplevel(i_clk, i_sw, o_led, o_shutdown_n, o_gain, o_pwm);
 	localparam	[15:0]	DEF_RELOAD = DR_8KHZ;
 	localparam signed [15:0]	HALF_DR = DEF_RELOAD[15:1] - 3;
 
-	wbpwmaudio #(.DEFAULT_RELOAD(16'd3125),
+	wbpwmaudio #(.DEFAULT_RELOAD(DEF_RELOAD),
 			.VARIABLE_RATE(0),
 			.NAUX(1))
 		genpwm(i_clk, test_reset, 1'b1, 1'b1, 1'b1, 1'b0,
-			{ 16'h0, signal },
+			{ 16'h0, signal[14:0], 1'b0 },
 			ignore_ack, ignore_stall, ignore_data,
 			pdm_out, ignore_pwm_aux, ignore_int);
 
@@ -247,9 +250,15 @@ module	toplevel(i_clk, i_sw, o_led, o_shutdown_n, o_gain, o_pwm);
 	// Since we're only going to use the top 16-bits, let's tell V*rilator
 	// that the bottom sixteen bits are unused.
 	//
+	// Well, ... not quite.  We're only using bits 29:14.  Hence we need
+	// to tell Verilator that the other bits are unused.  Since adjusting
+	// for the scale factor, the number of "unused" bits declared below is a
+	// touch more than the actual unused bits, but this should just allow
+	// us to modify things without Verilator complaining at us.
+	//
 	// verilator lint_off UNUSED
-	wire	[16:0]	unused;
-	assign	unused = { scaled_signal[31], scaled_signal[15:0] };
+	wire	[17:0]	unused;
+	assign	unused = { scaled_signal[31:30], scaled_signal[15:0] };
 	// verilator lint_on  UNUSED
 
 	//
@@ -258,7 +267,7 @@ module	toplevel(i_clk, i_sw, o_led, o_shutdown_n, o_gain, o_pwm);
 	traditionalpwm #(.DEFAULT_RELOAD(DEF_RELOAD),
 			.VARIABLE_RATE(0), .NAUX(1))
 		regpwm(i_clk, test_reset, 1'b1, 1'b1, 1'b1, 1'b0,
-			{ 16'h0, scaled_signal[30:15] },
+			{ 16'h0, scaled_signal[29:14] },
 			trad_ack, trad_stall, trad_data,
 			pwm_out, trad_pwm_aux, trad_int);
 
