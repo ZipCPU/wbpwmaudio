@@ -213,7 +213,7 @@ int main(int  argc, char **argv) {
 	// This should really be a command line parameter ...
 	// Adjust this value to true to produce a traditional PWM output, false
 	// to produce the "improved" PDM output.
-	const	bool	traditional_pwm = true;
+	const	bool	traditional_pwm = false;
 
 	printf("\n\n");
 	if (traditional_pwm) {
@@ -239,12 +239,14 @@ int main(int  argc, char **argv) {
 		// what step we are on, and what frequency is going into the
 		// frequency generator.
 		if ((k % (CLOCK_RATE_HZ/1000))==0) {
+			double	secs = k / (double)CLOCK_RATE_HZ;
 			if (tb->m_core->o_shutdown_n) {
 				double	f = tb->m_core->seq_step;
 				f = f * CLOCK_RATE_HZ / pow(2,34);
-				printf("k = %10d, %8.1f\n", k, f);
+				printf("k = %10d clocks, %5.2f secs, f = %8.1f Hz\n", k, secs, f);
 			} else
-				printf("k = %10d\n", k);
+				printf("k = %10d clocks, %5.2f secs\n", k, secs);
+
 		}
 
 		// Step the simulation forward by a single clock tick
