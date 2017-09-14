@@ -86,3 +86,6 @@ function [img] = showspectrogram(fname)
 	image([mintime, maxtime], [minfreq, maxfreq/1e3], img * Nc);
 	ylabel('Frequency (kHz)');
 	xlabel('Time (s)');
+
+	% Trim this image output to the relevant portion of the output
+	axis([0, 6.2, 0, maxfreq/1e3]);
