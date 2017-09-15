@@ -126,7 +126,7 @@ module	traditionalpwm(i_clk, i_reset,
 			// We get a two's complement data from the bus.
 			// Convert it here to an unsigned binary offset
 			// representation
-			next_sample <= i_wb_data[15:0] + w_reload_value[15:1] + 1'b1;
+			next_sample <= i_wb_data[15:0] + { 1'b0, w_reload_value[15:1] } + 1'b1;
 			next_valid <= 1'b1;
 			if (i_wb_data[16])
 				o_aux <= i_wb_data[(NAUX+20-1):20];
@@ -138,7 +138,10 @@ module	traditionalpwm(i_clk, i_reset,
 	reg	[15:0]	pwm_counter;
 	initial	pwm_counter = 16'h00;
 	always @(posedge i_clk)
-			pwm_counter <= w_reload_value - timer;
+		if (ztimer)
+			pwm_counter <= 0;
+		else
+			pwm_counter <= pwm_counter + 1'b1;
 
 	always @(posedge i_clk)
 		o_pwm <= (sample_out >= pwm_counter);
