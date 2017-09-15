@@ -184,7 +184,10 @@ module	toplevel(i_clk, i_sw, o_led, o_shutdown_n, o_gain, o_pwm);
 	//
 	// The value was dropped from 16'h6dec to 16'h6de8 to provide some
 	// cushion against overflow.
-	cordic	gentone(i_clk, test_reset, 1'b1, 16'h6de8, 16'h0,
+	localparam	[15:0]	FULL_SCALE = 16'h6de8,
+				SMALL_SCALE= 16'h006e;
+	localparam	[15:0]	ACTUAL_SCALE = FULL_SCALE;
+	cordic	gentone(i_clk, test_reset, 1'b1, ACTUAL_SCALE, 16'h0,
 			test_phase[33:9], 1'b0, signal, geny, ignore_aux);
 
 	// Our goal is to calculate two outputs: one from the PDM, one from
@@ -212,8 +215,8 @@ module	toplevel(i_clk, i_sw, o_led, o_shutdown_n, o_gain, o_pwm);
 	// then the component will accept a value anytime it is ready for the
 	// next sample.  This allows us to ignore the rest of the wishbone
 	// interface (ack, stall, data, etc.)  Finally, we'll also ignore the
-	// interrupt output from the core simply because we just don't need
-	// it for this test setup.
+	// interrupt output from the core simply because we don't need it for
+	// this test setup.
 	//
 	localparam signed [15:0]	DR_44_1KHZ = 16'd2268,
 					DR_32KHZ = 16'd3125,
