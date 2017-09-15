@@ -89,3 +89,13 @@ function [img] = showspectrogram(fname)
 
 	% Trim this image output to the relevant portion of the output
 	axis([0, 6.2, 0, maxfreq/1e3]);
+
+% For the plot, comment out the img ./ max(max(img)) line, as well as the
+% img = (img+80)/80 line.  Then you can call this as:
+% img    = showspectrogram('pdm8k-weak.dbl');
+% imgpwm = showspectrogram('pwm8k-weak.dbl');
+%
+% freq = (0:(window_length-1))/(window_length)*(sample_rate/2/1e3)
+% plot(freq,img(:,1400),'b;PDM;',freq,imgpwm(:,1400),'r;PWM;');
+% grid on; xlabel('Frequency (kHz)'); ylabel('Volume (dB)');
+% axis([0,22,-70,50]);
