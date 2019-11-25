@@ -41,11 +41,14 @@
 //
 `default_nettype	none
 //
-module	toplevel(i_clk, i_sw, o_led, o_shutdown_n, o_gain, o_pwm);
-	input	wire	i_clk, i_sw;
-	output	wire	o_led;
-	output	wire	o_shutdown_n, o_gain;
-	output	reg	o_pwm;
+module	toplevel(i_clk, i_sw, o_led, o_shutdown_n, o_gain, o_pwm,
+		o_avgd);
+	input	wire		i_clk;
+	input	wire	[1:0]	i_sw;
+	output	wire		o_led;
+	output	wire		o_shutdown_n, o_gain;
+	output	reg		o_pwm;
+	output	reg	[17:0]	o_avgd;
 
 	// 8 second repeating test sequence
 	//
@@ -128,26 +131,26 @@ module	toplevel(i_clk, i_sw, o_led, o_shutdown_n, o_gain, o_pwm);
 	initial	sub_sweep = 0;
 	initial	sub_sweep_overflow = 0;
 	always @(posedge i_clk)
-		if (next_second)
-		begin
-			// seq_aux controls the gain and shutdown values
-			seq_aux   <= params[36:35];
-			// seq_step controls our output frequency.  It's
-			// defined as a step in phase
-			seq_step  <= params[34:1];
-			// seq_sweep is a single bit indicating whether or not
-			// we are sweeping or not.
-			seq_sweep <= params[0];
-		end else begin
-			// At each second, add one to the frequency if our
-			// sweep step counter overflowed.
-			seq_step <= seq_step + {{(33){1'b0}}, sub_sweep_overflow};
+	if (next_second)
+	begin
+		// seq_aux controls the gain and shutdown values
+		seq_aux   <= params[36:35];
+		// seq_step controls our output frequency.  It's
+		// defined as a step in phase
+		seq_step  <= params[34:1];
+		// seq_sweep is a single bit indicating whether or not
+		// we are sweeping or not.
+		seq_sweep <= params[0];
+	end else begin
+		// At each second, add one to the frequency if our
+		// sweep step counter overflowed.
+		seq_step <= seq_step + {{(33){1'b0}}, sub_sweep_overflow};
 
-			// Calculate a sweep step counter.  This is a six
-			// bit counter (0...63).  When it overflows, we'll
-			// increase our phase step amount (seq_step)
-			{ sub_sweep_overflow, sub_sweep } <= sub_sweep + { {(5){1'b0}}, (seq_sweep) };
-		end
+		// Calculate a sweep step counter.  This is a six
+		// bit counter (0...63).  When it overflows, we'll
+		// increase our phase step amount (seq_step)
+		{ sub_sweep_overflow, sub_sweep } <= sub_sweep + { {(5){1'b0}}, (seq_sweep) };
+	end
 
 	// Generating either a tone or a swept tone requires a phase, which we
 	// can then use to calculate a sin() and cos().  The change in this
@@ -186,19 +189,20 @@ module	toplevel(i_clk, i_sw, o_led, o_shutdown_n, o_gain, o_pwm);
 	// cushion against overflow.
 	localparam	[15:0]	FULL_SCALE = 16'h6de8,
 				SMALL_SCALE= 16'h006e;
-	localparam	[15:0]	ACTUAL_SCALE = FULL_SCALE;
+	localparam	[15:0]	ACTUAL_SCALE = SMALL_SCALE;
 	cordic	gentone(i_clk, test_reset, 1'b1, ACTUAL_SCALE, 16'h0,
 			test_phase[33:9], 1'b0, signal, geny, ignore_aux);
 
 	// Our goal is to calculate two outputs: one from the PDM, one from
 	// the PWM.
-	wire	pdm_out, pwm_out;
+	wire	pdm_out, pwm_out, lr_out;
 
 	// verilator lint_off UNUSED
 	wire		ignore_ack, ignore_stall, ignore_int,
-			trad_ack,   trad_stall,   trad_int;
-	wire	[31:0]	ignore_data, trad_data;
-	wire		ignore_pwm_aux, trad_pwm_aux;
+			trad_ack,   trad_stall,   trad_int,
+			lr_ack,     lr_stall,     lr_int;
+	wire	[31:0]	ignore_data, trad_data, lr_data;
+	wire		ignore_pwm_aux, trad_pwm_aux, lr_pwm_aux;
 	// verilator lint_on  UNUSED
 
 	// Here's our component under test.
@@ -218,10 +222,13 @@ module	toplevel(i_clk, i_sw, o_led, o_shutdown_n, o_gain, o_pwm);
 	// interrupt output from the core simply because we don't need it for
 	// this test setup.
 	//
-	localparam signed [15:0]	DR_44_1KHZ = 16'd2268,
+	localparam signed [15:0]	DR_48_0KHZ = 16'd2083,
+					DR_44_1KHZ = 16'd2268,
 					DR_32KHZ = 16'd3125,
 					DR_8KHZ = 16'd12500;
-	localparam	[15:0]	DEF_RELOAD = DR_8KHZ;
+	localparam	[15:0]		DEF_RELOAD = DR_48_0KHZ;
+	localparam			PRE_STEP = ((64'h1<<32)/{48'h0, DEF_RELOAD});
+	localparam	[31:0]		DEF_STEP = { PRE_STEP[28:0], 3'h0 };
 	localparam signed [15:0]	HALF_DR = DEF_RELOAD[15:1] - 3;
 
 	wbpwmaudio #(.DEFAULT_RELOAD(DEF_RELOAD),
@@ -274,22 +281,44 @@ module	toplevel(i_clk, i_sw, o_led, o_shutdown_n, o_gain, o_pwm);
 			trad_ack, trad_stall, trad_data,
 			pwm_out, trad_pwm_aux, trad_int);
 
+	//
+	// Let's throw the left-right PLL in here too
+	localparam	STEP_96k = 32'd4123169;
+	wbpwmbasic #(// .DEFAULT_STEP(DEF_STEP),
+			.DEFAULT_STEP(STEP_96k),
+			.VARIABLE_RATE(0), .NAUX(1))
+		lrpwm(i_clk, test_reset, 1'b1, 1'b1, 1'b1, 1'b0,
+			{ scaled_signal[29:6], 8'h0 }, 4'hf,
+			lr_ack, lr_stall, lr_data,
+			lr_out, lr_pwm_aux, lr_int);
 
 	// As a last step, use the switch to control which value actually goes
 	// out the output port.
 	always @(posedge i_clk)
-		if (i_sw)
-			o_pwm <= pdm_out;
-		else
-			o_pwm <= pwm_out;
+	case(i_sw)
+	2'b00: o_pwm <= pdm_out;
+	2'b01: o_pwm <= lr_out;
+	default: o_pwm <= pwm_out;
+	endcase
 
 	// Turn the LED "on" if we are producing the improved signal, leave
 	// it off otherwise.
-	assign	o_led = i_sw;
+	assign	o_led = i_sw[1];
 
 	// Finally, use the seq_aux values to control the two audio control
 	// pins. 
 	assign	o_shutdown_n = seq_aux[1];
 	assign	o_gain       = seq_aux[0];
 
+	reg	[1:0]	box_in;
+	always @(*)
+	if (!o_shutdown_n)
+		box_in = 0;
+	else if (o_pwm)
+		box_in = 2'b01;
+	else
+		box_in = 2'b10;
+
+	boxcar #(.IW(2), .LGMEM(16), .OW(18), .FIXED_NAVG(1'b1), .INITIAL_NAVG(16383))
+		bcar(i_clk, 1'b0, 16'h033, 1'b1, box_in, o_avgd);
 endmodule

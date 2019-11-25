@@ -49,6 +49,7 @@ VDIRFB:= $(FBDIR)/obj_dir
 test: $(VDIRFB)/Vtoplevel__ALL.a
 VOBJ := obj_dir
 SUBMAKE := $(MAKE) --no-print-directory --directory=$(VOBJ) -f
+GXX := g++
 ifeq ($(VERILATOR_ROOT),)
 VERILATOR := verilator
 VERILATOR_ROOT ?= $(shell bash -c '$(VERILATOR) -V|grep VERILATOR_ROOT | head -1 | sed -e " s/^.*=\s*//"')
@@ -57,9 +58,11 @@ VERILATOR := $(VERILATOR_ROOT)/bin/verilator
 endif
 export $(VERILATOR)
 VROOT := $(VERILATOR_ROOT)
+VDEFS := $(shell ./vversion.sh)
 VINCD := $(VROOT)/include
 VINC  := -I$(VINCD) -I$(VINCD)/vlstd -I$(VDIRFB)
 VFLAGS := -Wall -MMD --trace -y ../rtl -cc
+CFLAGS := -Wall $(VDEFS) $(VINC)
 
 $(VDIRFB)/Vtoplevel__ALL.a: $(VDIRFB)/Vcordic.h $(VDIRFB)/Vcordic.cpp
 $(VDIRFB)/Vtoplevel__ALL.a: $(VDIRFB)/Vcordic.mk
@@ -76,7 +79,7 @@ clean:
 	rm -rf $(VDIRFB)/
 
 pdmdemo: pdmdemo.cpp $(VDIRFB)/Vtoplevel__ALL.a
-	g++ -Wall $(VINC) $(VINCD)/verilated.cpp $(VINCD)/verilated_vcd_c.cpp $^ -o pdmdemo
+	$(GXX) $(CFLAGS) $(VINCD)/verilated.cpp $(VINCD)/verilated_vcd_c.cpp $^ -o pdmdemo
 
 #
 # Note Verilator's dependency created information, and include it here if we

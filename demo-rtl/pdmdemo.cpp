@@ -64,6 +64,23 @@
 // taps and leave examples with fewer taps for any paying customers.
 const int	FIRLEN = 65536*8;
 
+double  sinc(double f) {
+        double  x = M_PI * f;
+        // if (fabs(f)<1e-2)
+        if (fabs(f)<3e-1) {
+                double  xsq = x * x;
+                // sin(x) = x - x^3/3! + x^5/5! - x^7/7! + x^9/9! - x^11/11!...
+                //sinc(x) = 1 - x^2/3!+x^4/5!-x^6/7!+x^8/9!-x^10/11!...
+                return 1.0 - (xsq/6.0)
+                        * (1.0 - (xsq/20.0)
+                        * (1.0 - (xsq/42.0)
+                        * (1.0 - (xsq/72.0)
+                        * (1.0 - (xsq/110.0)
+                        * (1.0 - (xsq/156.0))))));
+        } else
+                return sin(x)/x;
+}
+
 //
 // class PDMDEMO is a wrapper class around the Verilator generated simulation
 // component.
@@ -96,15 +113,15 @@ public:
 
 			// Blackman Window --- see Oppenheim and Schafer
 			// for more info.
-			t = (i+1.0)/(FIRLEN+1.0);
+			t = (i+1.0-FIRLEN/2)/(FIRLEN+1.0);
 			window = 0.42
-				-0.50 * cos(2.0*M_PI*t)
+				+0.50 * cos(2.0*M_PI*t)
 				+0.08 * cos(4.0*M_PI*t);
 
 			// An "ideal" lowpass filter, with cutoff at fc
 			// (fc is in units of normalized frequency)
 			t = (i+1.0-FIRLEN/2);
-			m_taps[i] = sin(2.0 * M_PI * fc * t) / (M_PI * t);
+			m_taps[i] = 2.0 * fc * sinc(2.0 * fc * t); // sin(2.0 * M_PI * fc * t) / (M_PI * t);
 
 			// Apply the window to the filter tap
 			m_taps[i] *= window;
@@ -113,7 +130,7 @@ public:
 
 		// We'll set the middle tap special, since sin(x)/x isn't
 		// known for its convergence when x=0.
-		m_taps[FIRLEN/2-1] = fc;
+		// m_taps[FIRLEN/2-1] = 2.0 * fc;
 
 		// In case you'd like to look at this filter, we'll dump its
 		// taps to a file.
@@ -136,19 +153,18 @@ public:
 		if (m_wavfp)
 			fclose(m_wavfp);
 	}
-		
-	void	tick(void) {
-		int	output;
 
+	void	tick(void) {
 		// Tick the clock.
 		TESTB<Vtoplevel>::tick();
 
 		// Examine the output
-		output = TESTB<Vtoplevel>::m_core->o_pwm;
+		// output = TESTB<Vtoplevel>::m_core->o_pwm;
 
 		// If we are writing to an output file (should always be true)
 		// then ...
 		if (m_wavfp) {
+			int	output;
 
 			// Turn this output into a "voltage" centered upon
 			// zero.  If the output is not shutdown, the voltage
@@ -156,7 +172,7 @@ public:
 			// either be +/- one.  Otherwise, we'll just output a
 			// zero value.
 			if (m_core->o_shutdown_n)
-				output = 2*m_core->o_pwm - 1;
+				output = 2*(m_core->o_pwm&1) - 1;
 			else
 				output = 0;
 
@@ -218,9 +234,11 @@ int main(int  argc, char **argv) {
 	printf("\n\n");
 	if (traditional_pwm) {
 		printf("Creating the output for a traditional PWM\n");
-		tb->m_core->i_sw = 0;
+		tb->m_core->i_sw = 2;
 	} else {
-		printf("Creating the output for the modified/improved PDM\n");
+		// printf("Creating the output for the modified/improved PDM\n");
+		// tb->m_core->i_sw = 0;
+		printf("Creating the output for the LR PWM\n");
 		tb->m_core->i_sw = 1;
 	}
 	printf("\n\n");
