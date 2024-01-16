@@ -12,7 +12,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2015-2020, Gisselquist Technology, LLC
+// Copyright (C) 2015-2024, Gisselquist Technology, LLC
 //
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of the GNU General Public License as published
@@ -46,7 +46,11 @@
 
 // Verilator changed their naming convention somewhere around version 3.9 or
 // so.
-#ifdef	NEW_VERILATOR
+#ifdef	ROOT_VERILATOR
+#include "Vtoplevel___024root.h"
+
+#define	seq_step	rootp->toplevel__DOT__seq_step
+#elif	defined(NEW_VERILATOR)
 #define	seq_step	toplevel__DOT__seq_step
 #else
 #define	seq_step	v__DOT__seq_step

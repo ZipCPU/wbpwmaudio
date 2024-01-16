@@ -15,7 +15,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2017-2020, Gisselquist Technology, LLC
+// Copyright (C) 2017-2024, Gisselquist Technology, LLC
 //
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
@@ -46,7 +46,7 @@ module	cordic(i_clk, i_reset, i_ce, i_xval, i_yval, i_phase, i_aux,
 	localparam	IW=16,	// The number of bits in our inputs
 			OW=16,	// The number of output bits to produce
 			NSTAGES=21,
-			XTRA= 5,// Extra bits for internal precision
+			// XTRA= 5,// Extra bits for internal precision
 			WW=21,	// Our working bit-width
 			PW=25;	// Bits in our phase variables
 	input	wire				i_clk, i_reset, i_ce;

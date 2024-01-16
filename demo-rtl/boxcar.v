@@ -44,7 +44,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2017-2020, Gisselquist Technology, LLC
+// Copyright (C) 2017-2024, Gisselquist Technology, LLC
 //
 // This file is part of the DSP filtering set of designs.
 //
@@ -194,25 +194,27 @@ module	boxcar(i_clk, i_reset, i_navg, i_ce, i_sample, o_result);
 	// Round the result from IW+LGMEM bits down to OW bits.  Also, deal
 	// with all the various cases of relationships between IW+LGLEN and OW
 	wire	[(IW+LGMEM-1):0]	rounded;
-	generate
+	generate begin : GEN_ROUND
 	// if (IW+LGMEM < OW)
 		// CANNOT BE: rounded is only IW+LGLEN bits long
 		// Besides, artificially increasing the number of bits doesn't
 		// really make sense
 	if (IW+LGMEM == OW)
+	begin : NO_ROUNDING
 		// No rounding required, output is the acc(umulator)
 		assign	rounded = acc;
-	else if (IW+LGMEM == OW + 1)
+	end else if (IW+LGMEM == OW + 1)
+	begin : DROP_ONE
 		// Need to drop one bit, round towards even
 		assign	rounded = acc + { {(OW){1'b0}}, acc[1] };
-	else // if (IW+LGMEM > OW)
+	end else begin : DROP_MORE // if (IW+LGMEM > OW)
 		// Drop more than one bit, rounding towards even
 		assign	rounded = acc + {
 				{(OW){1'b0}},
 				acc[(IW+LGMEM-OW)],
 				{(IW+LGMEM-OW-1){!acc[(IW+LGMEM-OW)]}}
 				};
-	endgenerate
+	end end endgenerate
 
 	// (Still stage four)
 	// rounded is set with combinatorial logic.  It's also set to

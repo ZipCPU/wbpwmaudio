@@ -55,7 +55,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2015-2020, Gisselquist Technology, LLC
+// Copyright (C) 2015-2024, Gisselquist Technology, LLC
 //
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of the GNU General Public License as published
@@ -109,14 +109,14 @@ module	wbpwmaudio(i_clk, i_reset,
 	wire	[(TIMING_BITS-1):0]	w_reload_value;
 	generate
 	if (VARIABLE_RATE != 0)
-	begin
+	begin : GEN_VARIABLE_RELOAD
 		reg	[(TIMING_BITS-1):0]	r_reload_value;
 		initial	r_reload_value = DEFAULT_RELOAD;
 		always @(posedge i_clk) // Data write
 			if ((i_wb_stb)&&(i_wb_addr)&&(i_wb_we))
 				r_reload_value <= i_wb_data[(TIMING_BITS-1):0] - 1'b1;
 		assign	w_reload_value = r_reload_value;
-	end else begin
+	end else begin : FIXED_RELOAD_VALUE
 		assign	w_reload_value = DEFAULT_RELOAD;
 	end endgenerate
 
@@ -212,13 +212,13 @@ module	wbpwmaudio(i_clk, i_reset,
 	// Handle the bus return traffic.
 	generate
 	if (VARIABLE_RATE == 0)
-	begin
+	begin : FIXWB_RETURN
 		// If we are running off of a fixed rate, then just return
 		// the current setting of the aux registers, the current
 		// interrupt value, and the current sample we are outputting.
 		assign o_wb_data = { {(12-NAUX){1'b0}}, o_aux,
 					3'h0, o_int, sample_out };
-	end else begin
+	end else begin : RELOAD_WB_RETURN
 		// On the other hand, if we have been built to support a
 		// variable sample rate, then return the reload value for
 		// address one but otherwise the data value (above) for address

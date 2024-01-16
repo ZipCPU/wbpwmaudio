@@ -18,7 +18,7 @@
 ##
 ################################################################################
 ##
-## Copyright (C) 2017, Gisselquist Technology, LLC
+## Copyright (C) 2017-2024, Gisselquist Technology, LLC
 ##
 ## This program is free software (firmware): you can redistribute it and/or
 ## modify it under the terms of  the GNU General Public License as published
@@ -79,7 +79,7 @@ clean:
 	rm -rf $(VDIRFB)/
 
 pdmdemo: pdmdemo.cpp $(VDIRFB)/Vtoplevel__ALL.a
-	$(GXX) $(CFLAGS) $(VINCD)/verilated.cpp $(VINCD)/verilated_vcd_c.cpp $^ -o pdmdemo
+	$(GXX) $(CFLAGS) $(VINCD)/verilated.cpp $(VINCD)/verilated_vcd_c.cpp $(VINCD)/verilated_threads.cpp $^ -lpthread -o pdmdemo
 
 #
 # Note Verilator's dependency created information, and include it here if we

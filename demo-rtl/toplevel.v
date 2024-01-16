@@ -15,7 +15,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2017-2020, Gisselquist Technology, LLC
+// Copyright (C) 2017-2024, Gisselquist Technology, LLC
 //
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of the GNU General Public License as published
@@ -187,7 +187,7 @@ module	toplevel(i_clk, i_sw, o_led, o_shutdown_n, o_gain, o_pwm,
 	//
 	// The value was dropped from 16'h6dec to 16'h6de8 to provide some
 	// cushion against overflow.
-	localparam	[15:0]	FULL_SCALE = 16'h6de8,
+	localparam	[15:0]	// FULL_SCALE = 16'h6de8,
 				SMALL_SCALE= 16'h006e;
 	localparam	[15:0]	ACTUAL_SCALE = SMALL_SCALE;
 	cordic	gentone(i_clk, test_reset, 1'b1, ACTUAL_SCALE, 16'h0,
@@ -222,13 +222,13 @@ module	toplevel(i_clk, i_sw, o_led, o_shutdown_n, o_gain, o_pwm,
 	// interrupt output from the core simply because we don't need it for
 	// this test setup.
 	//
-	localparam signed [15:0]	DR_48_0KHZ = 16'd2083,
-					DR_44_1KHZ = 16'd2268,
-					DR_32KHZ = 16'd3125,
-					DR_8KHZ = 16'd12500;
+	localparam signed [15:0]	DR_48_0KHZ = 16'd2083;
+					// DR_44_1KHZ = 16'd2268,
+					// DR_32KHZ = 16'd3125,
+					// DR_8KHZ = 16'd12500;
 	localparam	[15:0]		DEF_RELOAD = DR_48_0KHZ;
-	localparam			PRE_STEP = ((64'h1<<32)/{48'h0, DEF_RELOAD});
-	localparam	[31:0]		DEF_STEP = { PRE_STEP[28:0], 3'h0 };
+	// localparam			PRE_STEP = ((64'h1<<32)/{48'h0, DEF_RELOAD});
+	// localparam	[31:0]		DEF_STEP = { PRE_STEP[28:0], 3'h0 };
 	localparam signed [15:0]	HALF_DR = DEF_RELOAD[15:1] - 3;
 
 	wbpwmaudio #(.DEFAULT_RELOAD(DEF_RELOAD),
